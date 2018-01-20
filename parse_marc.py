@@ -20,7 +20,16 @@ for event, elem in tree:
 	if elem.text:
 		elem.text = elem.text.rstrip(',')
 
+	# for each record
 	if elem.tag == '{http://www.loc.gov/MARC21/slim}record':
+
+		# if there is no 300 field, add a placeholder so we don't get an ASpace import error
+		if elem.find('{http://www.loc.gov/MARC21/slim}datafield[@tag="300"]') is None:
+			extent = ET.Element('datafield', tag='300', ind1=' ', ind2=' ')
+			extent_sub = ET.Element('subfield', code='a')
+			extent_sub.text = 'placeholder'
+			elem.append(extent)
+			extent.append(extent_sub)
 
 		# the filenames of the resulting xml files will be based on the call number
 		identifier = elem.find('{*}datafield[@tag="852"]/{*}subfield[@code="j"]')
@@ -38,6 +47,8 @@ for event, elem in tree:
 					for e in el.getchildren():
 						if e.text.endswith('.') and (' ' not in e.text[-4:] or 'de' in e.text[-4:]):
 							e.text = e.text.rstrip('.')
+						if e.get('code') == 'q':
+							e.text = e.text.lstrip('(').rstrip(')')
 
 				if el.tag == '{http://www.loc.gov/MARC21/slim}datafield' and el.get('tag') == '110':
 					for e in el.getchildren():
@@ -47,17 +58,21 @@ for event, elem in tree:
 					for e in el.getchildren():
 						if (e.get('code') == 'a' or e.get('code') == 'b') and e.text.endswith(':'):
 							e.text = e.text.rstrip(':').rstrip()
+						if (e.get('code') == 'a' or e.get('code') == 'b') and e.text.startswith(':'):
+							e.text = e.text.lstrip(':').lstrip()
 						if e.get('code') == 'c' or e.get('code') == 'f' or e.get('code') == 'g':
 							e.text = e.text.rstrip('.')
 						if e.get('code') == 'h':
 							e.text = e.text.lstrip('[').rstrip(']')
 						if e.get('code') == 'k':
-							if 'ALS' in e.text:
-								note = ET.Element('datafield', tag='500', ind1=' ', ind2=' ')
-								note_sub = ET.Element('subfield', code='a')
-								note_sub.text = 'Autograph letter signed.'
-								elem.append(note)
-								note.append(note_sub)
+							# grab this data and move to a General Note
+							note = ET.Element('datafield', tag='500', ind1=' ', ind2=' ')
+							note_sub = ET.Element('subfield', code='a')
+							note_sub.text = e.text
+							elem.append(note)
+							note.append(note_sub)
+							# now we can remove this subfield
+							e.getparent().remove(e)
 
 				if el.tag == '{http://www.loc.gov/MARC21/slim}datafield' and el.get('tag') == '541':
 					for e in el.getchildren():
@@ -117,8 +132,8 @@ for event, elem in tree:
 									extent_sub = ET.Element('subfield', code='a')
 									extent_sub.text = value2
 									elem.append(extent)
-									extent.append(extent_sub
-)
+									extent.append(extent_sub)
+
 				# DATES
 				# look in control field 008 for dates
 				# if none, see if the 245 field has subfields
@@ -132,6 +147,15 @@ for event, elem in tree:
 									date.text = 'undated'
 									sib.append(date)
 									print '*** adding "undated" to', identifier.text
+
+				# 752 field
+				# if this field is missing subfield 2, ASpace import throws an error
+				if el.tag == '{http://www.loc.gov/MARC21/slim}datafield' and (el.get('tag') == '752' or el.get('tag') == '754'):
+					if el.find('{http://www.loc.gov/MARC21/slim}subfield[@code="2"]') is None:
+						# let's add subfield 2
+						source = ET.Element('subfield', code='2')
+						source.text = 'naf'
+						el.append(source)
 
 			# write out each <record> to a file
 			print 'writing', filename
