@@ -22,6 +22,7 @@ Where we saw import errors with our MARC XML:
 * If there is no 300 field at all, inserts a 300 with the text “placeholder”
 * Prevents 245 subfield $k from being appended to the ASpace title, and creates a 500 note with this value instead.
 * If there is no date in control field 008 (characters #8-11 in the string), and also no date in 245 subfield $f or $g, adds a subfield $f of "undated." This prevents records with no date from throwing an error during import.
+* If there is a circa date in control field 008 (e.g., “188u”) and no date in 245 subfield $f or $g, adds a subfield $f of “fix circa date.”
 * If there is a 752 or 754 field in the MARC record, ASpace expects to see subfield $2, the “source of heading or term,” even though this subfield is not required by MARC. Thus, the script will insert a subfield $2 with “naf” as the value.
 
 ### How to use it

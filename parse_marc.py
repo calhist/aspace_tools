@@ -7,8 +7,8 @@
 import os, lxml.etree as ET, re
 
 # you probably want to change these values
-filename = 'ms-vault.xml'
-callnumber = 'MS Vault'
+filename = 'kemble-ms'
+callnumber = 'Kemble'
 
 tree = ET.iterparse(filename, events=('end', ), remove_blank_text=True)
 
@@ -16,9 +16,12 @@ tree = ET.iterparse(filename, events=('end', ), remove_blank_text=True)
 for event, elem in tree:
 
 	# PUNCTUATION
-	# get rid of any and all trailing commas
 	if elem.text:
+		# get rid of any and all trailing commas
 		elem.text = elem.text.rstrip(',')
+
+		# Remove any double spaces
+		elem.text = elem.text.replace('  ', ' ')
 
 	# for each record
 	if elem.tag == '{http://www.loc.gov/MARC21/slim}record':
@@ -37,7 +40,7 @@ for event, elem in tree:
 
 		# only process those records that actually match the call number prefix we're working with
 		if identifier.text.startswith(callnumber):
-			identifier.text = identifier.text.rstrip('.')
+			identifier.text = identifier.text.rstrip('.').replace(':', '-')
 			filename = format(identifier.text + ".xml")
 
 			for el in elem:
@@ -62,8 +65,9 @@ for event, elem in tree:
 							e.text = e.text.lstrip(':').lstrip()
 						if e.get('code') == 'c' or e.get('code') == 'f' or e.get('code') == 'g':
 							e.text = e.text.rstrip('.')
+						# remove subfield $h
 						if e.get('code') == 'h':
-							e.text = e.text.lstrip('[').rstrip(']')
+							e.getparent().remove(e)
 						if e.get('code') == 'k':
 							# grab this data and move to a General Note
 							note = ET.Element('datafield', tag='500', ind1=' ', ind2=' ')
@@ -147,6 +151,17 @@ for event, elem in tree:
 									date.text = 'undated'
 									sib.append(date)
 									print '*** adding "undated" to', identifier.text
+
+				# if creation date is approximate, add "fix circa date" as the date expression
+				if el.tag == '{http://www.loc.gov/MARC21/slim}controlfield' and el.get('tag') == '008':
+					if 'u' in el.text[7:11]:
+						for sib in el.itersiblings():
+							if sib.tag == '{http://www.loc.gov/MARC21/slim}datafield' and sib.get('tag') == '245':
+								if sib.find('{http://www.loc.gov/MARC21/slim}subfield[@code="f"]') is None and sib.find('{http://www.loc.gov/MARC21/slim}subfield[@code="g"]') is None:
+									date = ET.Element('subfield', code='f')
+									date.text = 'fix circa date'
+									sib.append(date)
+									print '*** adding "fix circa date" to', identifier.text
 
 				# 752 field
 				# if this field is missing subfield 2, ASpace import throws an error
